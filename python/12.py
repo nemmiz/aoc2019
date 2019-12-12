@@ -76,6 +76,10 @@ def get_z_state(moons):
     return tuple(chain.from_iterable((moon.z, moon.vz) for moon in moons))
 
 
+def lcm(a, b):
+    return (a * b) // gcd(a, b)
+
+
 def simulate(moons, num_steps):
     moons = deepcopy(moons)
 
@@ -91,51 +95,42 @@ def simulate(moons, num_steps):
 
 def calculate_state_loop(moons):
     moons = deepcopy(moons)
-    x_states = set()
-    y_states = set()
-    z_states = set()
     steps = 0
 
+    initial_state_x = get_x_state(moons)
+    initial_state_y = get_y_state(moons)
+    initial_state_z = get_z_state(moons)
+
+    num_states_x = None
+    num_states_y = None
+    num_states_z = None
+
     # Calculate how many different states there are for each axis
-    while True:
+    while num_states_x is None or num_states_y is None or num_states_z is None:
         for a, b in permutations(range(len(moons)), 2):
             moons[a].apply_gravity(moons[b])
 
         for moon in moons:
             moon.apply_velocity()
-    
-        if len(x_states) < steps:
-            x_states.add(get_x_state(moons))
-        if len(y_states) < steps:
-            y_states.add(get_y_state(moons))
-        if len(z_states) < steps:
-            z_states.add(get_z_state(moons))
-
-        if len(x_states) < steps and len(y_states) < steps and len(z_states) < steps:
-            break
 
         steps += 1
 
-    lxs, lys, lzs = len(x_states), len(y_states), len(z_states)
-    x, y, z = 0, 0, 0
-    steps = 0
+        if num_states_x is None:
+            state = get_x_state(moons)
+            if state == initial_state_x:
+                num_states_x = steps
 
-    # Calculate the optimal number of steps to take each iteration
-    d = gcd(gcd(lxs, lys), lzs)
-    tmp = sorted([lxs, lys, lzs])
-    step_amount = (tmp[1] // d) * (tmp[2] // d)
+        if num_states_y is None:
+            state = get_y_state(moons)
+            if state == initial_state_y:
+                num_states_y = steps
 
-    # Step through the states until we reach state 0,0,0 again
-    # and keep track of how many steps it took to get there
-    while True:
-        x = (x + step_amount) % lxs
-        y = (y + step_amount) % lys
-        z = (z + step_amount) % lzs
-        steps += step_amount
-        if x == 0 and y == 0 and z == 0:
-            break
-    
-    print('Steps until repetition:', steps)
+        if num_states_z is None:
+            state = get_z_state(moons)
+            if state == initial_state_z:
+                num_states_z = steps
+
+    print('Steps until repetition:', lcm(lcm(num_states_x, num_states_y), num_states_z))
 
 
 moons = read_moons('../input/12.txt')
