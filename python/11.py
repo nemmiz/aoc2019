@@ -163,7 +163,7 @@ def print_panels(panels):
     for pos, color in panels.items():
         x = pos[0]-minx
         y = pos[1]-miny
-        image[y][x] = ' ' if color == BLACK else 'X' 
+        image[y][x] = ' ' if color == BLACK else '#' 
 
     for row in image:
         print(''.join(row))
