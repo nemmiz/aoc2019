@@ -49,69 +49,68 @@ def split_map(the_map):
     return quadrants
 
 
-def bitmask_from_string(s, offset):
+def make_bitmask(s, offset):
     result = 0
     for c in s:
         result |= 1 << (ord(c) - offset)
     return result
 
 
-def find_distance_between_keys(the_map):
-    positions = {}
-    for y, line in enumerate(the_map):
-        for x, c in enumerate(line):
-            if c not in '.#':
-                positions[c] = (x, y)
-
-    locks = {}
-    for ent, pos in positions.items():
-        if ent.isupper():
-            locks[pos] = ent
+def find_paths_between_keys(the_map):
+    positions = find_positions(the_map)
+    locks = {pos: ent for ent, pos in positions.items() if ent.isupper()}
    
     result = {}
     for ent, pos in positions.items():
         if ent.isupper():
             continue
+
+        # Run Dijkstra's algorithm to find the closest path
+        # from this point to all other points
         open_set = [(0, pos)]
         came_from = {pos: None}
         cost_so_far = {pos: 0}
         while open_set:
             current = heapq.heappop(open_set)[1]
-            neighbors = ((current[0], current[1]-1), (current[0], current[1]+1), (current[0]-1, current[1]), (current[0]+1, current[1]))
-            for adj in neighbors:
-                if the_map[adj[1]][adj[0]] == '#':
+            neighbors = (
+                (current[0], current[1]-1),
+                (current[0], current[1]+1),
+                (current[0]-1, current[1]),
+                (current[0]+1, current[1])
+            )
+            for neighbor in neighbors:
+                if the_map[neighbor[1]][neighbor[0]] == '#':
                     continue
                 new_cost = cost_so_far[current] + 1
-                if adj not in cost_so_far or new_cost < cost_so_far[adj]:
-                    cost_so_far[adj] = new_cost
+                if neighbor not in cost_so_far or new_cost < cost_so_far[neighbor]:
+                    cost_so_far[neighbor] = new_cost
                     priority = new_cost
-                    heapq.heappush(open_set, (priority, adj))
-                    came_from[adj] = current
+                    heapq.heappush(open_set, (priority, neighbor))
+                    came_from[neighbor] = current
 
+        # Trace the paths back to the starting position to get the full path
+        # Keep track of any locks encountered on the path
         for other_ent, other_pos in positions.items():
             if other_ent.isupper() or ent == other_ent:
                 continue
-            distance = 0
-            locks_in_the_way = ''
-            if other_pos not in came_from:
-                continue
-            parent_pos = came_from[other_pos]
-            while parent_pos is not None:
-                if parent_pos in locks:
-                    locks_in_the_way = locks_in_the_way + locks[parent_pos]
-                parent_pos = came_from[parent_pos]
-                distance += 1
-            result[ent+other_ent] = (distance, bitmask_from_string(locks_in_the_way, ord('A')))
+            steps, locks_on_path = 0, []
+            other_pos = came_from[other_pos]
+            while other_pos is not None:
+                if other_pos in locks:
+                    locks_on_path.append(locks[other_pos])
+                other_pos = came_from[other_pos]
+                steps += 1
+            result[ent+other_ent] = (steps, make_bitmask(locks_on_path, ord('A')))
 
     return result
 
 
 def solve(the_map):
     positions = find_positions(the_map)
-    distances = find_distance_between_keys(the_map)
+    paths = find_paths_between_keys(the_map)
 
-    keys_in_map = [k for k in positions.keys() if k.islower()]
-    all_keys_bitmask = bitmask_from_string(keys_in_map, ord('a'))
+    all_keys = [k for k in positions.keys() if k.islower()]
+    all_keys_bitmask = make_bitmask(all_keys, ord('a'))
 
     q = deque()
     q.append(('@', 0, 0))
@@ -121,28 +120,26 @@ def solve(the_map):
     while q:
         state = q.popleft()
 
-        tup = (state[0], state[1])
-        if tup in visited:
-            steps = visited[tup]
+        # Skip if we've reached this state with less steps before
+        pos_keys = (state[0], state[1])
+        if pos_keys in visited:
+            steps = visited[pos_keys]
             if steps <= state[2]:
                 continue
 
-        visited[tup] = state[2]
+        visited[pos_keys] = state[2]
 
         if state[1] == all_keys_bitmask:
             current_minimum = min(current_minimum, state[2])
             continue
 
-        for c in keys_in_map:
-            if state[0] == c:
+        for k in all_keys:
+            if state[0] == k:
                 continue
-            dist, req = distances[state[0]+c]
+            dist, req = paths[state[0]+k]
             if (state[1] & req) != req:
                 continue
-
-            new_owned_keys = state[1] | (1 << (ord(c)-ord('a')))
-
-            q.append((c, new_owned_keys, state[2]+dist))
+            q.append((k, state[1] | (1 << (ord(k)-ord('a'))), state[2]+dist))
 
     return current_minimum
 
